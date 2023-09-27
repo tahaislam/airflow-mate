@@ -6,6 +6,7 @@ sphinx-autodoc-typehints
 sphinxcontrib-jquery
 myst-parser
 sphinx-copybutton
+sphinx-multiversion
 
 # Linters
 pylint
@@ -17,4 +18,4 @@ sqlfluff
 pipdeptree
 
 # git hooks
-pre-commit
+pre-commit==3.4.0
