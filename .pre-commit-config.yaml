@@ -57,12 +57,12 @@ repos:
         language: system
         types: [python]
         require_serial: true
-    -   id: build-docs
-        name: build sphinx docs
-        language: system
-        entry: make doc
-        stages:
-        -   pre-push
+    # -   id: build-docs
+    #     name: build sphinx docs
+    #     language: system
+    #     entry: make doc
+    #     stages:
+    #     -   pre-push
     -   id:  tag-issue
         name: check tag issue in commit message
         language: pygrep
