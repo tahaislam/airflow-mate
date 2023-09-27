@@ -16,12 +16,12 @@ repos:
     hooks:
       - id: pip-compile
         name: pip-compile requirements-dev.in
-        args: [requirements-dev.in, --quiet, --resolver=backtracking]
-        files: ^requirements-dev\.(in|txt)$
+        args: [requirements-dev.in, --quiet, --strip-extras, --resolver=backtracking]
+        files: ^requirements-dev\.in$
       - id: pip-compile
         name: pip-compile requirements.in
-        args: [requirements.in, --quiet, --resolver=backtracking]
-        files: ^requirements\.(in|txt)$
+        args: [requirements.in, --quiet, --strip-extras, --resolver=backtracking]
+        files: ^requirements\.in$
 
 -   repo: https://github.com/sqlfluff/sqlfluff
     rev: 2.3.2
@@ -43,6 +43,13 @@ repos:
 
 -   repo: local
     hooks:
+    -   id: pip-sync
+        name: pip-sync
+        entry: pip-sync
+        language: system
+        args: [requirements.txt, requirements-dev.txt]
+        files: ^requirements(-dev)\.txt$
+        pass_filenames: false
     -   id: pylint
         name: pylint
         entry: pylint
