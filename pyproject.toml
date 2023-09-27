@@ -1,0 +1,179 @@
+###############################################################################
+#                                 SQLFLUFF                                    #
+###############################################################################
+[tool.sqlfluff.core]
+dialect = "postgres"
+exclude_rules = "L009, L030, L031, L032, L051, L055"
+warnings = "L001, L005, L006, L008, L016, L023, L036, L050"
+
+[tool.sqlfluff.rules]
+tab_space_size = 4
+indent_unit = "space"
+max_line_length = 100
+aliasing = "explicit"
+
+[tool.sqlfluff.rules.L010]
+capitalisation_policy = "upper"
+
+[tool.sqlfluff.rules.L040]
+capitalisation_policy = "upper"
+
+[tool.sqlfluff.rules.L063]
+extended_capitalisation_policy = "lower"
+
+###############################################################################
+#                                   BLACK                                     #
+###############################################################################
+[tool.black]
+line-length = 80
+target-version = ['py39']
+include = '\.pyi?$'
+exclude = '''
+/(
+  \.toml
+  |\.sh
+  |\.git
+  |\.ini
+  |Dockerfile
+  |Jenkinfile
+)/
+'''
+
+###############################################################################
+#                                  PYLINT                                     #
+###############################################################################
+[tool.pylint.main]
+# Return non-zero exit code if any of these messages/categories are detected.
+# fail-on =
+
+# Specify a score threshold under which the program will exit with error.
+fail-under = 7
+
+# Files or directories to be skipped. They should be base names, not paths.
+ignore = [".ipynb_checkpoints"]
+# ignore-patterns = ["^\\.#"]
+# ignore-paths =
+
+# Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
+# number of processors available to use, and will cap the count on Windows to
+# avoid hangs.
+jobs = 0
+
+# Minimum Python version to use for version dependent checks. Will default to the
+# version used to run pylint.
+py-version = "3.9"
+
+# When enabled, pylint would attempt to guess common misconfiguration and emit
+# user-friendly hints instead of false-positive error messages.
+suggestion-mode = true
+
+# Python code to execute, usually for sys.path manipulation such as
+# pygtk.require().
+init-hook = "import sys; sys.path.append('/home/airflow/airflow_venv/lib/python3.9/site-packages')"
+
+[tool.pylint.basic]
+# Naming style matching correct argument names.
+argument-naming-style = "snake_case"
+
+# Naming style matching correct attribute names.
+attr-naming-style = "snake_case"
+
+# Bad variable names which should always be refused, separated by a comma.
+bad-names = ["foo", "bar", "baz", "toto", "tutu", "tata"]
+
+# Naming style matching correct class attribute names.
+class-attribute-naming-style = "any"
+
+# Naming style matching correct class constant names.
+class-const-naming-style = "UPPER_CASE"
+
+# Naming style matching correct class names.
+class-naming-style = "PascalCase"
+
+# Naming style matching correct constant names.
+const-naming-style = "UPPER_CASE"
+
+# Naming style matching correct function names.
+function-naming-style = "snake_case"
+
+# Good variable names which should always be accepted, separated by a comma.
+good-names = ["geoprocessing", "ds", "df", "dt", "datatype"]
+
+# Include a hint for the correct naming format with invalid-name.
+include-naming-hint = true
+
+# Naming style matching correct inline iteration names.
+inlinevar-naming-style = "any"
+
+# Naming style matching correct method names.
+method-naming-style = "snake_case"
+
+# Naming style matching correct module names.
+module-naming-style = "snake_case"
+
+# Naming style matching correct variable names.
+variable-naming-style = "snake_case"
+
+[tool.pylint.design]
+# Maximum number of arguments for function / method.
+max-args = 5
+
+# Maximum number of locals for function / method body.
+max-locals = 20
+
+[tool.pylint.exceptions]
+# Exceptions that will emit a warning when caught.
+overgeneral-exceptions = ["builtins.BaseException", "builtins.Exception"]
+
+[tool.pylint.format]
+# Regexp for a line that is allowed to be longer than the limit.
+ignore-long-lines = "^\\s*(# )?<?https?://\\S+>?$"
+
+# Number of spaces of indent required inside a hanging or continued line.
+indent-after-paren = 4
+
+# String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
+# tab).
+indent-string = "    "
+
+# Maximum number of characters on a single line.
+max-line-length = 80
+
+[tool.pylint."messages control"]
+# Disable the message, report, category or checker with the given id(s).
+disable = ["raw-checker-failed", "bad-inline-option", "locally-disabled", "file-ignored", "suppressed-message", "useless-suppression", "deprecated-pragma", "use-symbolic-message-instead", "unrecognized-option"]
+
+[tool.pylint.miscellaneous]
+# List of note tags to take in consideration, separated by a comma.
+notes = ["FIXME", "XXX", "TODO"]
+
+[tool.pylint.spelling]
+# Limits count of emitted suggestions for spelling mistakes.
+max-spelling-suggestions = 4
+
+# List of comma separated words that should be considered directives if they
+# appear at the beginning of a comment and should not be checked.
+spelling-ignore-comment-directives = "fmt: on,fmt: off,noqa:,noqa,nosec,isort:skip,mypy:"
+
+# List of comma separated words that should not be checked.
+# spelling-ignore-words =
+
+[tool.pylint.variables]
+# A regular expression matching the name of dummy variables (i.e. expected to not
+# be used).
+dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
+
+# Argument names that match this expression will be ignored.
+ignored-argument-names = "_.*|^ignored_|^unused_"
+
+###############################################################################
+#                                PYDOCSTYLE                                   #
+###############################################################################
+[tool.pydocstyle]
+# Disable inheriting the parent directory’s configuration and merge them to the
+# local ones.
+inherit = false
+
+# Google Python Style Guide
+# https://google.github.io/styleguide/pyguide.html
+convention = "google"
