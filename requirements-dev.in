@@ -1,0 +1,20 @@
+# Sphinx docs
+sphinx
+sphinx-rtd-theme
+sphinx-sql
+sphinx-autodoc-typehints
+sphinxcontrib-jquery
+myst-parser
+sphinx-copybutton
+
+# Linters
+pylint
+pydocstyle[toml]
+black[jupyter]
+sqlfluff
+
+# Dependency tree
+pipdeptree
+
+# git hooks
+pre-commit
