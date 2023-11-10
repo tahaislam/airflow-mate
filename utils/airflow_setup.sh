@@ -86,8 +86,8 @@ backup_airflow() {
         echo "Enter the password of the PostgreSQL user: $PG_ADMIN"
         pg_dump -h $PG_HOST_ADDRESS -U $PG_ADMIN --create $OLD_PG_DATABASE > "${BACKUP_PATH}/files/database_`date +'%Y_%m_%d_%H_%M'`"
         # stop Airflow
-        sudo systemctl stop airflow-webserver
-        sudo systemctl stop airflow-scheduler
+        ${sudo} systemctl stop airflow-webserver
+        ${sudo} systemctl stop airflow-scheduler
     fi
 }
 
@@ -209,10 +209,10 @@ initialize_services() {
     else
         echo "Creating service files..."
         service_file=/etc/systemd/system/airflow-webserver.service
-        [[ -e $service_file ]] && sudo rm $service_file
-        sudo touch $service_file
-        sudo chmod 777 $service_file
-        sudo cat > $service_file <<-EOF
+        [[ -e $service_file ]] && ${sudo} rm $service_file
+        ${sudo} touch $service_file
+        ${sudo} chmod 777 $service_file
+        ${sudo} cat > $service_file <<-EOF
         [Unit]
         Description=Airflow webserver daemon
         After=network.target postgresql.service mysql.service redis.service rabbitmq-server.service
@@ -235,10 +235,10 @@ initialize_services() {
 EOF
 
         service_file=/etc/systemd/system/airflow-scheduler.service
-        [[ -e $service_file ]] && sudo rm $service_file
-        sudo touch $service_file
-        sudo chmod 777 $service_file
-        sudo cat > $service_file <<-EOF
+        [[ -e $service_file ]] && ${sudo} rm $service_file
+        ${sudo} touch $service_file
+        ${sudo} chmod 777 $service_file
+        ${sudo} cat > $service_file <<-EOF
         [Unit]
         Description=Airflow scheduler daemon
         After=network.target postgresql.service mysql.service
@@ -259,12 +259,12 @@ EOF
     fi
 
     # load service files
-    sudo systemctl daemon-reload
+    ${sudo} systemctl daemon-reload
     # enable autostart and start the services
-    sudo systemctl enable airflow-webserver
-    sudo systemctl enable airflow-scheduler
-    sudo systemctl start airflow-webserver
-    sudo systemctl start airflow-scheduler
+    ${sudo} systemctl enable airflow-webserver
+    ${sudo} systemctl enable airflow-scheduler
+    ${sudo} systemctl start airflow-webserver
+    ${sudo} systemctl start airflow-scheduler
 }
 
 # read the installation parameters
@@ -286,12 +286,9 @@ if [ ${USE_PROXY,,} == 'true' ]; then
     echo
 fi
 
-# 3. sudo command
-if (cat /etc/os-release | grep '^ID=.*' | cut -d= -f2 | grep -q 'rhel'); then
-    sudo=pbrun
-elif (cat /etc/os-release | grep '^ID=.*' | cut -d= -f2 | grep -q 'ubuntu'); then
-    sudo=sudo
-fi
+# 3. replace sudo with whatever command in the config file; otherwise, keep it `sudo`
+sudo="${sudo:-sudo}"
+${sudo} ls
 
 # backup old Airflow installation if needed
 #==========================================
