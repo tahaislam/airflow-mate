@@ -1,7 +1,7 @@
 #!/bin/bash
 # ./airflow_setup.sh airflow_setup.ini
 # exit upon any error
-set -e
+# set -e
 
 # create a folder if it doesn't exist
 touch2() { mkdir -p "$(dirname "$1")" && touch "$1" ; }
@@ -146,15 +146,21 @@ setup_airflow_db() {
 }
 
 setup_airflow_env() {
-    if [[ -f "${ENV_FILE}" ]]; then
-        read -p "Do you want to overwrite the environment variable file ${ENV_FILE}? [Y/n]" overwrite_flag
-        if [ ${overwrite_flag,,} == 'y' ]; then
+    if [[ -f "${INPUT_ENV_FILE}" ]]; then
+        if [[ -f "${ENV_FILE}" ]]; then
+            read -p "Do you want to overwrite the environment variable file ${ENV_FILE}? [Y/n]" overwrite_flag
+            if [ ${overwrite_flag,,} == 'y' ]; then
+                cp2 "${INPUT_ENV_FILE}" "${ENV_FILE}"
+            fi
+        else
             cp2 "${INPUT_ENV_FILE}" "${ENV_FILE}"
         fi
+        chmod 600 $ENV_FILE
+        set -a; source $ENV_FILE; set +a
     else
-        cp2 "${INPUT_ENV_FILE}" "${ENV_FILE}"
+        echo "The environment variable file ${INPUT_ENV_FILE} doesn't exist"
+        exit 1
     fi
-    chmod 600 $ENV_FILE
 }
 
 initialize_airflow_db() {
@@ -202,8 +208,11 @@ initialize_services() {
         rm "${AIRFLOW_HOME}/temp"
     else
         echo "Creating service files..."
-        sudo touch /etc/systemd/system/airflow-webserver.service && sudo chmod 777 /etc/systemd/system/airflow-webserver.service
-        sudo cat > /etc/systemd/system/airflow-webserver.service <<-EOF
+        service_file=/etc/systemd/system/airflow-webserver.service
+        [[ -e $service_file ]] && sudo rm $service_file
+        sudo touch $service_file
+        sudo chmod 777 $service_file
+        sudo cat > $service_file <<-EOF
         [Unit]
         Description=Airflow webserver daemon
         After=network.target postgresql.service mysql.service redis.service rabbitmq-server.service
@@ -214,7 +223,7 @@ initialize_services() {
         User=airflow
         Group=airflow
         Type=simple
-        ExecStart= bash -c 'source $AIRFLOW_VENV/bin/activate ; $AIRFLOW_VENV/bin/airflow webserver -p $WEBSERVER_PORT  --pid $AIRFLOW_HOME/webserver.pid'
+        ExecStart= bash -c 'source $AIRFLOW_VENV/bin/activate ; $AIRFLOW_VENV/bin/airflow webserver -p $WEBSERVER_PORT --pid $AIRFLOW_HOME/webserver.pid'
         RuntimeDirectory=airflow
         RuntimeDirectoryMode=0775
         Restart=on-failure
@@ -225,8 +234,11 @@ initialize_services() {
         WantedBy=multi-user.target
 EOF
 
-        sudo touch /etc/systemd/system/airflow-scheduler.service && sudo chmod 777 /etc/systemd/system/airflow-scheduler.service
-        sudo cat > /etc/systemd/system/airflow-scheduler.service <<-EOF
+        service_file=/etc/systemd/system/airflow-scheduler.service
+        [[ -e $service_file ]] && sudo rm $service_file
+        sudo touch $service_file
+        sudo chmod 777 $service_file
+        sudo cat > $service_file <<-EOF
         [Unit]
         Description=Airflow scheduler daemon
         After=network.target postgresql.service mysql.service
@@ -291,44 +303,47 @@ fi
 # set up the new Airflow
 #=======================
 # 1. set up the virtual environment
-read -p "Do you want to set up a new venv for Airflow? [Y/n]" response
+read -p "(1/7) Do you want to set up a new venv for Airflow? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     setup_venv
-    source $AIRFLOW_VENV/bin/activate # activate the venv
 fi
+[[ -e "${AIRFLOW_VENV}/bin/activate" ]] && source $AIRFLOW_VENV/bin/activate # activate the venv (if it exists)
 
 # 2. install Airflow
-read -p "Do you want to set up Airflow? [Y/n]" response
+read -p "(2/7) Do you want to set up Airflow? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     setup_airflow
 fi
 
 # 3. set up a new Airfow database if needed
-read -p "Do you want to set up Airflow database backend? [Y/n]" response
+read -p "(3/7) Do you want to set up Airflow database backend? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     setup_airflow_db
 fi
 
-# 4. initizlize/upgrade the database
-read -p "Do you want to initialize/upgrade Airflow database? [Y/n]" response
-if [ ${response,,} == 'y' ]; then
-    initialize_airflow_db
-fi
-
-# 5. set up Airflow env vars
-read -p "Do you want to create/update Airflow environment variables file? [Y/n]" response
+# 4. set up Airflow env vars
+read -p "(4/7) Do you want to create/update Airflow environment variables file? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     setup_airflow_env
 fi
 
-# 6. add Airflow env vars to .bashrc
-read -p "Do you want to update the .bashrc file with Airflow environment variables? [Y/n]" response
+# 5. add Airflow env vars to .bashrc
+read -p "(5/7) Do you want to update the .bashrc file with Airflow environment variables? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     insert_if_not_exists "set -a; source $ENV_FILE; set +a" ~/.bashrc
 fi
 
+# 6. initizlize/upgrade the database
+read -p "(6/7) Do you want to initialize/upgrade Airflow database? [Y/n]" response
+if [ ${response,,} == 'y' ]; then
+    initialize_airflow_db
+fi
+
 # 7. create/update the service files
-read -p "Do you want to create/update Airflow systemd files? [Y/n]" response
+read -p "(7/7) Do you want to create/update Airflow systemd files? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     initialize_services
 fi
+
+echo "Airflow is successfully installed!"
+echo "Try accessing Airflow at http://localhost:${WEBSERVER_PORT}/airflow"
