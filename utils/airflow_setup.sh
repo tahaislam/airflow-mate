@@ -288,7 +288,6 @@ fi
 
 # 3. replace sudo with whatever command in the config file; otherwise, keep it `sudo`
 sudo="${sudo:-sudo}"
-${sudo} ls
 
 # backup old Airflow installation if needed
 #==========================================
@@ -328,6 +327,8 @@ fi
 read -p "(5/7) Do you want to update the .bashrc file with Airflow environment variables? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     insert_if_not_exists "set -a; source $ENV_FILE; set +a" ~/.bashrc
+else
+    echo "Please, make sure to export Airflow environment variables manually"
 fi
 
 # 6. initizlize/upgrade the database
@@ -340,6 +341,8 @@ fi
 read -p "(7/7) Do you want to create/update Airflow systemd files? [Y/n]" response
 if [ ${response,,} == 'y' ]; then
     initialize_services
+else
+    echo "Please, make sure to update the service files manually"
 fi
 
 echo "Airflow is successfully installed!"
