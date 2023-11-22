@@ -17,27 +17,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "This PR's base branch is ${{ github.head_ref }}"
-  get_version:
+  draft_release_notes:
     needs: if_base_release
     runs-on: ubuntu-latest
     steps:
       - uses: bhowell2/github-substring-action@1.0.2
-        id: two
+        id: get_version
         with:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
-  draft_release_notes:
-    needs: get_version
-    runs-on: ubuntu-latest
-    steps:
       - run: gh release create 'v$VERSION' --draft --generate-notes --latest --target main --title 'VFH $VERSION'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ job.get_version.outputs.substring }}
+          VERSION: ${{ steps.get_version.outputs.substring }}
   init_new_dev_release:
-    needs: get_version
+    needs: if_base_release
     runs-on: ubuntu-latest
     steps:
+      - uses: bhowell2/github-substring-action@1.0.2
+        id: get_version
+        with:
+          value: ${{ github.head_ref }}
+          index_of_str: "releases/"
       - run: |
           gh issue create --title 'Update the version number for the new release' \
           --label 'ignore-for-release' --project 'VFH Data Management' \
