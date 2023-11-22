@@ -28,7 +28,10 @@ jobs:
         with:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
-      - run: gh release create 'v${{ steps.get_version.outputs.substring }}' --draft --generate-notes --latest --target main --title 'VFH $VERSION' --repo tahaislam/airflow-mate
+      - run: |
+          gh release create 'v${{ steps.get_version.outputs.substring }}' \
+          --repo tahaislam/airflow-mate --target main --draft --generate-notes --latest \
+          --title 'VFH ${{ steps.get_version.outputs.substring }}'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   init_new_dev_release:
@@ -48,4 +51,3 @@ jobs:
           and `latest_release_tag` to ${{ steps.get_version.outputs.substring }}. Remember also to create a new milestone for the upcoming release.'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
