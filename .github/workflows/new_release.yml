@@ -19,6 +19,7 @@ jobs:
       - run: echo "This PR's base branch is ${{ github.head_ref }}"
   draft_release_notes:
     needs: if_base_release
+    permissions: write-all
     runs-on: ubuntu-latest
     steps:
       - uses: bhowell2/github-substring-action@1.0.2
@@ -40,11 +41,10 @@ jobs:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
       - run: |
-          gh issue create --title 'Update the version number for the new release' \
-          --label 'ignore-for-release' --project 'VFH Data Management' --repo tahaislam/airflow-mate \
+          gh issue create --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
           --body 'Please, update the version number (`version`) in docs/source/conf.py to an appropriate value \
           and `latest_release_tag` to $TAG_NAME. Remember also to create a new milestone for the upcoming release. \
-          \n**Created by Github action.**'
+          \n**Created by Github action.**' # --label 'ignore-for-release' --project 'VFH Data Management' \
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.event.release.tag_name }}
