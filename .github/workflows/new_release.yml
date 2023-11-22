@@ -26,7 +26,7 @@ jobs:
         with:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
-  draft_a_release:
+  draft_release_notes:
     needs: get_version
     runs-on: ubuntu-latest
     steps:
