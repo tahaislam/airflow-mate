@@ -1,0 +1,49 @@
+name: New release
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - 'main'
+jobs:
+  if_merged:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo The PR was merged
+  if_base_release:
+    needs: if_merged
+    if: startsWith(github.head_ref, 'releases/')
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This PR's base branch is ${{ github.head_ref }}"
+  get_version:
+    needs: if_base_release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: bhowell2/github-substring-action@1.0.2
+        id: two
+        with:
+          value: ${{ github.head_ref }}
+          index_of_str: "releases/"
+  draft_a_release:
+    needs: get_version
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release create 'v$VERSION' --draft --generate-notes --latest --target main --title 'VFH $VERSION'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ job.get_version.outputs.substring }}
+  init_new_dev_release:
+    needs: get_version
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          gh issue create --title 'Update the version number for the new release' \
+          --label 'ignore-for-release' --project 'VFH Data Management' \
+          --body 'Please, update the version number (`version`) in docs/source/conf.py to an appropriate value \
+          and `latest_release_tag` to $TAG_NAME. Remember also to create a new milestone for the upcoming release. \
+          \n**Created by Github action.**'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
