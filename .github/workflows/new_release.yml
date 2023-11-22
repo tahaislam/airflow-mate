@@ -26,7 +26,7 @@ jobs:
         with:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
-      - run: gh release create 'v$VERSION' --draft --generate-notes --latest --target main --title 'VFH $VERSION'
+      - run: gh release create 'v$VERSION' --draft --generate-notes --latest --target main --title 'VFH $VERSION' --repo tahaislam/airflow-mate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get_version.outputs.substring }}
@@ -41,7 +41,7 @@ jobs:
           index_of_str: "releases/"
       - run: |
           gh issue create --title 'Update the version number for the new release' \
-          --label 'ignore-for-release' --project 'VFH Data Management' \
+          --label 'ignore-for-release' --project 'VFH Data Management' --repo tahaislam/airflow-mate \
           --body 'Please, update the version number (`version`) in docs/source/conf.py to an appropriate value \
           and `latest_release_tag` to $TAG_NAME. Remember also to create a new milestone for the upcoming release. \
           \n**Created by Github action.**'
