@@ -56,6 +56,7 @@ jobs:
           git config --global user.name "github-actions"
           git checkout -b releases/${{ needs.get_versions.outputs.next_version }} main
           sed -i '/^\[project\]$/,/^\[/ s/^version = .*$/version = "${{ needs.get_versions.outputs.next_version }}"/' pyproject.toml
+          sed -i '/^\[project\]$/,/^\[/ s/^latest_release_tag = .*$/latest_release_tag = "${{ needs.get_versions.outputs.version }}"/' pyproject.toml
           git add pyproject.toml
           git commit -m "update project's version to ${{ needs.get_versions.outputs.next_version }}"
           git push --set-upstream origin releases/${{ needs.get_versions.outputs.next_version }}
@@ -81,7 +82,6 @@ jobs:
       - run: |
           gh pr create --base main --head releases/${{ needs.get_versions.outputs.next_version }} \
           --milestone "v${{ needs.get_versions.outputs.next_version }}" \
-          --label "ignore-for-release" \
           --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
           --body 'Please, update the version number (`version`) in docs/source/conf.py to an appropriate value \
           and `latest_release_tag` to ${{ needs.get_versions.outputs.version }}. Remember also to create a new milestone for the upcoming release.'
