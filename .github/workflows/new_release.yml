@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_current_version.outputs.substring }}
-      next_version: echo ${{ steps.get_current_version.outputs.substring }} | awk -F. -v OFS=. '{$(NF-1) += 1 ; print}'
+      next_version: $(echo ${{ steps.get_current_version.outputs.substring }} | awk -F. -v OFS=. '{$(NF-1) += 1 ; print}')
     steps:
       - uses: bhowell2/github-substring-action@1.0.2
         id: get_current_version
@@ -53,3 +53,18 @@ jobs:
           git add pyproject.toml
           git commit -m "update project's version to ${{ needs.get_versions.outputs.next_version }}"
           git push --set-upstream origin releases/${{ needs.get_versions.outputs.next_version }}
+  create_pr_for_new_release:
+    needs: [get_versions, update_version]
+    permissions:
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          gh pr create --base main --head releases/${{ needs.get_versions.outputs.next_version }} \
+          --milestone "v${{ needs.get_versions.outputs.next_version }}" \
+          --label "ignore-for-release" \
+          --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
+          --body 'Please, update the version number (`version`) in docs/source/conf.py to an appropriate value \
+          and `latest_release_tag` to ${{ needs.get_versions.outputs.version }}. Remember also to create a new milestone for the upcoming release.'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
