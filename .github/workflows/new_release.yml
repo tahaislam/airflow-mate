@@ -22,13 +22,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_current_version.outputs.substring }}
-      next_version: $(echo ${{ steps.get_current_version.outputs.substring }} | awk -F. -v OFS=. '{$(NF-1) += 1 ; print}')
+      next_version: ${{ steps.get_next_version.outputs.version }}
     steps:
       - uses: bhowell2/github-substring-action@1.0.2
         id: get_current_version
         with:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
+      - id: get_next_version
+        run: echo "version=$(echo ${{ steps.get_current_version.outputs.substring }} | awk -F. -v OFS=. '{$(NF-1) += 1 ; print}')" >> $GITHUB_OUTPUT
   draft_release_notes:
     needs: get_versions
     permissions:
