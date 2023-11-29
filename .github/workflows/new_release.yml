@@ -17,37 +17,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "This PR's base branch is ${{ github.head_ref }}"
-  draft_release_notes:
+  get_versions:
     needs: if_base_release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_current_version.outputs.substring }}
+      next_version: echo ${{ steps.get_current_version.outputs.substring }} | awk -F. -v OFS=. '{$(NF-1) += 1 ; print}'
+    steps:
+      - uses: bhowell2/github-substring-action@1.0.2
+        id: get_current_version
+        with:
+          value: ${{ github.head_ref }}
+          index_of_str: "releases/"
+  draft_release_notes:
+    needs: get_versions
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: bhowell2/github-substring-action@1.0.2
-        id: get_version
-        with:
-          value: ${{ github.head_ref }}
-          index_of_str: "releases/"
       - run: |
-          gh release create 'v${{ steps.get_version.outputs.substring }}' \
+          gh release create 'v${{ needs.get_versions.outputs.version }}' \
           --repo tahaislam/airflow-mate --target main --draft --generate-notes --latest \
-          --title 'VFH ${{ steps.get_version.outputs.substring }}'
+          --title 'VFH ${{ needs.get_versions.outputs.version }}'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  init_new_dev_release:
-    needs: if_base_release
-    permissions:
-      issues: write
+  update_version:
+    needs: get_versions
     runs-on: ubuntu-latest
     steps:
-      - uses: bhowell2/github-substring-action@1.0.2
-        id: get_version
-        with:
-          value: ${{ github.head_ref }}
-          index_of_str: "releases/"
-      - run: |
-          gh issue create --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
-          --body 'Please, update the version number (`version`) in docs/source/conf.py to an appropriate value \
-          and `latest_release_tag` to ${{ steps.get_version.outputs.substring }}. Remember also to create a new milestone for the upcoming release.'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v3
+      - name: Update pyproject.toml
+        run: |
+          git checkout -b releases/${{ needs.get_versions.outputs.next_version }} main
+          sed -i '/^\[project\]$/,/^\[/ s/^version = "${{ needs.get_versions.outputs.version }}"$/version = "${{ needs.get_versions.outputs.next_version }}"/' pyproject.toml
+          git add pyproject.toml
+          git commit -m "update project's version to ${{ needs.get_versions.outputs.next_version }}"
+          git push --set-upstream origin releases/${{ needs.get_versions.outputs.next_version }}
