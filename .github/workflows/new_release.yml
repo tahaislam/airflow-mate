@@ -53,7 +53,7 @@ jobs:
           git config --global user.email "github-actions@toronto.com"
           git config --global user.name "github-actions"
           git checkout -b releases/${{ needs.get_versions.outputs.next_version }} main
-          sed -i '/^\[project\]$/,/^\[/ s/^version = "${{ needs.get_versions.outputs.version }}"$/version = "${{ needs.get_versions.outputs.next_version }}"/' pyproject.toml
+          sed -i '/^\[project\]$/,/^\[/ s/^version = .*$/version = "${{ needs.get_versions.outputs.next_version }}"/' pyproject.toml
           git add pyproject.toml
           git commit -m "update project's version to ${{ needs.get_versions.outputs.next_version }}"
           git push --set-upstream origin releases/${{ needs.get_versions.outputs.next_version }}
