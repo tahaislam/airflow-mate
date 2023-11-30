@@ -63,14 +63,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   create_pr_for_new_release:
-    needs: get_versions
+    needs: [get_versions, update_version]
     permissions:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - run: |
           gh pr create --base main --head releases/${{ needs.get_versions.outputs.next_version }} \
-          --label "ignore-for-release" \
           --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
           --body 'This PR updates the version number for the upcoming release (`version`) and the \
           latest stable release (`latest_release_tag`) in `docs/source/conf.py`. \
