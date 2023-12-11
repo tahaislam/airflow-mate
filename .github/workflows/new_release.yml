@@ -6,45 +6,43 @@ on:
     branches:
       - 'main'
 jobs:
-  if_merged:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo The PR was merged
-  if_base_release:
-    needs: if_merged
-    if: startsWith(github.head_ref, 'releases/')
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "This PR's base branch is ${{ github.head_ref }}"
-  get_versions:
-    needs: if_base_release
+  check_if_is_release:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_current_version.outputs.substring }}
       next_version: ${{ steps.get_next_version.outputs.version }}
     steps:
-      - uses: bhowell2/github-substring-action@1.0.2
+      - name: Check if PR is merged
+        id: if_merged
+        if: github.event.pull_request.merged == true
+        run: echo The PR was merged
+      - name: Check if merged branch is a release
+        id: if_base_release
+        if: startsWith(github.head_ref, 'releases/')
+        run: echo "This PR's base branch is ${{ github.head_ref }}"
+      - name: Get current version number
         id: get_current_version
+        uses: bhowell2/github-substring-action@1.0.2
         with:
           value: ${{ github.head_ref }}
           index_of_str: "releases/"
-      - id: get_next_version
-        run: echo "version=$(echo ${{ steps.get_current_version.outputs.substring }} | awk -F. -v OFS=. '{$(NF-1) += 1; $NF = 0; print}')" >> $GITHUB_OUTPUT
+      - name: Get next version number
+        id: get_next_version
+        run: echo "version=$(echo ${{ steps.get_current_version.outputs.version }} | awk -F. -v OFS=. '{$(NF-1) += 1; $NF = 0; print}')" >> $GITHUB_OUTPUT
   draft_release_notes:
-    needs: get_versions
+    needs: check_if_is_release
     permissions:
       contents: write
     runs-on: ubuntu-latest
     steps:
       - run: |
-          gh release create 'v${{ needs.get_versions.outputs.version }}' \
+          gh release create 'v${{ needs.check_if_is_release.outputs.version }}' \
           --repo tahaislam/airflow-mate --target main --draft --generate-notes --latest \
-          --title 'VFH ${{ needs.get_versions.outputs.version }}'
+          --title 'VFH ${{ needs.check_if_is_release.outputs.version }}'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   update_version:
-    needs: get_versions
+    needs: check_if_is_release
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -54,26 +52,26 @@ jobs:
         run: |
           git config --global user.email "github-actions@toronto.com"
           git config --global user.name "github-actions"
-          git checkout -b releases/${{ needs.get_versions.outputs.next_version }} main
-          sed -i '/^\[project\]$/,/^\[/ s/^version = .*$/version = "${{ needs.get_versions.outputs.next_version }}"/' pyproject.toml
-          sed -i '/^\[project\]$/,/^\[/ s/^latest_release_tag = .*$/latest_release_tag = "${{ needs.get_versions.outputs.version }}"/' pyproject.toml
+          git checkout -b releases/${{ needs.check_if_is_release.outputs.next_version }} main
+          sed -i '/^\[project\]$/,/^\[/ s/^version = .*$/version = "${{ needs.check_if_is_release.outputs.next_version }}"/' pyproject.toml
+          sed -i '/^\[project\]$/,/^\[/ s/^latest_release_tag = .*$/latest_release_tag = "${{ needs.check_if_is_release.outputs.version }}"/' pyproject.toml
           git add pyproject.toml
-          git commit -m "update project's version to ${{ needs.get_versions.outputs.next_version }}"
-          git push --set-upstream origin releases/${{ needs.get_versions.outputs.next_version }}
+          git commit -m "update project's version to ${{ needs.check_if_is_release.outputs.next_version }}"
+          git push --set-upstream origin releases/${{ needs.check_if_is_release.outputs.next_version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   create_pr_for_new_release:
-    needs: [get_versions, update_version]
+    needs: [check_if_is_release, update_version]
     permissions:
       pull-requests: write
     runs-on: ubuntu-latest
     steps:
       - run: |
-          gh pr create --base main --head releases/${{ needs.get_versions.outputs.next_version }} \
+          gh pr create --base main --head releases/${{ needs.check_if_is_release.outputs.next_version }} \
           --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
           --body 'This PR updates the version number for the upcoming release (`version`) and the \
           latest stable release (`latest_release_tag`) in `docs/source/conf.py`. \
           Please, review and make any necessary modifications. **Also, remember to \
-          create a new milestone for the upcoming release, e.g., `v${{ needs.get_versions.outputs.next_version }}`.**'
+          create a new milestone for the upcoming release, e.g., `v${{ needs.check_if_is_release.outputs.next_version }}`.**'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
