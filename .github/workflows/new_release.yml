@@ -4,7 +4,7 @@ on:
     types:
       - closed
     branches:
-      - 'main'
+      - 'releases/0.10.0'
 jobs:
   if_merged:
     if: github.event.pull_request.merged == true
@@ -39,7 +39,7 @@ jobs:
     steps:
       - run: |
           gh release create 'v${{ needs.get_versions.outputs.version }}' \
-          --repo tahaislam/airflow-mate --target main --draft --generate-notes --latest \
+          --repo tahaislam/airflow-mate --target releases/0.10.0 --draft --generate-notes --latest \
           --title 'VFH ${{ needs.get_versions.outputs.version }}'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,7 +54,7 @@ jobs:
         run: |
           git config --global user.email "github-actions@toronto.com"
           git config --global user.name "github-actions"
-          git checkout -b releases/${{ needs.get_versions.outputs.next_version }} main
+          git checkout -b releases/${{ needs.get_versions.outputs.next_version }} releases/0.10.0
           sed -i '/^\[project\]$/,/^\[/ s/^version = .*$/version = "${{ needs.get_versions.outputs.next_version }}"/' pyproject.toml
           sed -i '/^\[project\]$/,/^\[/ s/^latest_release_tag = .*$/latest_release_tag = "${{ needs.get_versions.outputs.version }}"/' pyproject.toml
           git add pyproject.toml
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          gh pr create --base main --head releases/${{ needs.get_versions.outputs.next_version }} \
+          gh pr create --base releases/0.10.0 --head releases/${{ needs.get_versions.outputs.next_version }} \
           --title 'Update the version number for the new release' --repo tahaislam/airflow-mate \
           --body 'This PR updates the version number for the upcoming release (`version`) and the \
           latest stable release (`latest_release_tag`) in `docs/source/conf.py`. \
