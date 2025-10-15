@@ -82,12 +82,21 @@ backup_airflow() {
         # service files
         cp2 /etc/systemd/system/airflow-webserver.service "${BACKUP_PATH}/files"
         cp2 /etc/systemd/system/airflow-scheduler.service "${BACKUP_PATH}/files"
+        cp2 /etc/systemd/system/airflow-api-server.service "${BACKUP_PATH}/files"
+        cp2 /etc/systemd/system/airflow-dag-processor.service "${BACKUP_PATH}/files"
         # backup the database
         echo "Enter the password of the PostgreSQL user: $PG_ADMIN"
         pg_dump -h $PG_HOST_ADDRESS -U $PG_ADMIN --create $OLD_PG_DATABASE > "${BACKUP_PATH}/files/database_`date +'%Y_%m_%d_%H_%M'`"
-        # stop Airflow
+        # stop Airflow services
         ${sudo} systemctl stop airflow-webserver
         ${sudo} systemctl stop airflow-scheduler
+        # Stop Airflow 3.x specific services if they exist
+        if systemctl is-active --quiet airflow-api-server; then
+            ${sudo} systemctl stop airflow-api-server
+        fi
+        if systemctl is-active --quiet airflow-dag-processor; then
+            ${sudo} systemctl stop airflow-dag-processor
+        fi
     fi
 }
 
@@ -105,17 +114,40 @@ setup_venv() {
 
 setup_airflow() {
     PYTHON_VERSION="$(python3 --version | cut -d " " -f 2 | cut -d "." -f 1-2)"
-    echo "Installing Airflow ${AIRFLOW_VERSION} on ${PYTHON_VERSION}..."
+    PYTHON_MAJOR="$(python3 --version | cut -d " " -f 2 | cut -d "." -f 1)"
+    PYTHON_MINOR="$(python3 --version | cut -d " " -f 2 | cut -d "." -f 2)"
+
+    # Check Python version compatibility
+    AIRFLOW_MAJOR="$(echo ${AIRFLOW_VERSION} | cut -d "." -f 1)"
+    if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
+        if [ "$PYTHON_MAJOR" -lt 3 ] || ([ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 9 ]); then
+            echo "Error: Airflow 3.x requires Python 3.9 or higher. Current version: ${PYTHON_VERSION}"
+            exit 1
+        fi
+        if [ "$PYTHON_MINOR" -gt 12 ]; then
+            echo "Warning: Python 3.${PYTHON_MINOR} may not be fully supported. Recommended versions: 3.9-3.12"
+        fi
+    fi
+
+    echo "Installing Airflow ${AIRFLOW_VERSION} on Python ${PYTHON_VERSION}..."
     if [ -z "${CONSTRAINT_URL}" ]; then
         CONSTRAINT_URL="https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PYTHON_VERSION}.txt"
     fi
-    # TO DO: remove proxy setup. should be configured after creating the venv
+
     if [ ${USE_PROXY,,} == 'true' ]; then
         python3 -m pip install --proxy=http://$proxy_username:$proxy_pass@$PROXY_URL:8080 --upgrade pip
         python3 -m pip install --proxy=http://$proxy_username:$proxy_pass@$PROXY_URL:8080 "apache-airflow[${AIRFLOW_EXTRAS}]==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
+        # Install standard providers for Airflow 3.x
+        if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
+            python3 -m pip install --proxy=http://$proxy_username:$proxy_pass@$PROXY_URL:8080 "apache-airflow-providers-standard" --constraint "${CONSTRAINT_URL}"
+        fi
     else
         python3 -m pip install --upgrade pip
         python3 -m pip install "apache-airflow[${AIRFLOW_EXTRAS}]==${AIRFLOW_VERSION}" --constraint "${CONSTRAINT_URL}"
+        # Install standard providers for Airflow 3.x
+        if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
+            python3 -m pip install "apache-airflow-providers-standard" --constraint "${CONSTRAINT_URL}"
+        fi
     fi
     echo 'Successfully installed Airflow '`airflow version`
 }
@@ -164,48 +196,75 @@ setup_airflow_env() {
 }
 
 initialize_airflow_db() {
+    AIRFLOW_MAJOR="$(echo ${AIRFLOW_VERSION} | cut -d "." -f 1)"
+
     if [ ${UPGRADE,,} == 'true' ]; then
         echo "Upgrading Airflow database..."
-        vercomp $AIRFLOW_VERSION '2.7.0'
-        if [[ $? == 2 ]]; then
-            airflow db upgrade
-        else
+        # Airflow 3.x and 2.7+ use 'airflow db migrate'
+        if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
             airflow db migrate
+        else
+            vercomp $AIRFLOW_VERSION '2.7.0'
+            if [[ $? == 2 ]]; then
+                airflow db upgrade
+            else
+                airflow db migrate
+            fi
         fi
-        airflow db upgrade
         airflow db check && echo "Upgraded Airflow database successfully..."
     else
         echo "Initializing Airflow database..."
-        vercomp $AIRFLOW_VERSION '2.7.0'
-        if [[ $? == 2 ]]; then
-            airflow db init
-        else
+        # Airflow 3.x and 2.7+ use 'airflow db migrate'
+        if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
             airflow db migrate
+        else
+            vercomp $AIRFLOW_VERSION '2.7.0'
+            if [[ $? == 2 ]]; then
+                airflow db init
+            else
+                airflow db migrate
+            fi
         fi
         airflow db check && echo "Initialized Airflow database successfully..."
     fi
 }
 
 initialize_services() {
+    AIRFLOW_MAJOR="$(echo ${AIRFLOW_VERSION} | cut -d "." -f 1)"
+
     if [ ${UPGRADE,,} == 'true' ]; then
         echo "Updating service files..."
         ENV_FILE_=`echo $ENV_FILE | sed -r 's/\//\\\\\//g'`
         AIRFLOW_VENV_=`echo $AIRFLOW_VENV | sed -r 's/\//\\\\\//g'`
         AIRFLOW_HOME_=`echo $AIRFLOW_HOME | sed -r 's/\//\\\\\//g'`
         # webserver
-        cp "/etc/systemd/system/airflow-webserver.service" "${AIRFLOW_HOME}/temp"
-        # update_file "\(^Environment.*DEPLOYMENT.*$\)" "Environment='DEPLOYMENT=${DEPLOYMENT}'" "${AIRFLOW_HOME}/temp"
+        ${sudo} cp "/etc/systemd/system/airflow-webserver.service" "${AIRFLOW_HOME}/temp"
         update_file "\(^EnvironmentFile.*$\)" "EnvironmentFile=${ENV_FILE_}" "${AIRFLOW_HOME}/temp"
         update_file "\(^ExecStart.*$\)" "ExecStart= /bin/bash -c 'source ${AIRFLOW_VENV_}/bin/activate ; ${AIRFLOW_VENV_}/bin/airflow webserver -p ${WEBSERVER_PORT}  --pid ${AIRFLOW_HOME_}/webserver.pid'" "${AIRFLOW_HOME}/temp"
-        cat "${AIRFLOW_HOME}/temp" > "/etc/systemd/system/airflow-webserver.service"
+        ${sudo} cat "${AIRFLOW_HOME}/temp" > "/etc/systemd/system/airflow-webserver.service"
         rm "${AIRFLOW_HOME}/temp"
         # scheduler
-        cp "/etc/systemd/system/airflow-scheduler.service" "${AIRFLOW_HOME}/temp"
-        # update_file "\(^Environment.*DEPLOYMENT.*$\)" "Environment='DEPLOYMENT=${DEPLOYMENT}'" "${AIRFLOW_HOME}/temp"
+        ${sudo} cp "/etc/systemd/system/airflow-scheduler.service" "${AIRFLOW_HOME}/temp"
         update_file "\(^EnvironmentFile.*$\)" "EnvironmentFile=${ENV_FILE_}" "${AIRFLOW_HOME}/temp"
         update_file "\(^ExecStart.*$\)" "ExecStart= /bin/bash -c 'source ${AIRFLOW_VENV_}/bin/activate ; ${AIRFLOW_VENV_}/bin/airflow scheduler'" "${AIRFLOW_HOME}/temp"
-        cat "${AIRFLOW_HOME}/temp" > "/etc/systemd/system/airflow-scheduler.service"
+        ${sudo} cat "${AIRFLOW_HOME}/temp" > "/etc/systemd/system/airflow-scheduler.service"
         rm "${AIRFLOW_HOME}/temp"
+        # api-server (Airflow 3.x)
+        if [ "$AIRFLOW_MAJOR" -ge 3 ] && [ -f "/etc/systemd/system/airflow-api-server.service" ]; then
+            ${sudo} cp "/etc/systemd/system/airflow-api-server.service" "${AIRFLOW_HOME}/temp"
+            update_file "\(^EnvironmentFile.*$\)" "EnvironmentFile=${ENV_FILE_}" "${AIRFLOW_HOME}/temp"
+            update_file "\(^ExecStart.*$\)" "ExecStart= /bin/bash -c 'source ${AIRFLOW_VENV_}/bin/activate ; ${AIRFLOW_VENV_}/bin/airflow api-server'" "${AIRFLOW_HOME}/temp"
+            ${sudo} cat "${AIRFLOW_HOME}/temp" > "/etc/systemd/system/airflow-api-server.service"
+            rm "${AIRFLOW_HOME}/temp"
+        fi
+        # dag-processor (Airflow 3.x optional)
+        if [ "$AIRFLOW_MAJOR" -ge 3 ] && [ -f "/etc/systemd/system/airflow-dag-processor.service" ]; then
+            ${sudo} cp "/etc/systemd/system/airflow-dag-processor.service" "${AIRFLOW_HOME}/temp"
+            update_file "\(^EnvironmentFile.*$\)" "EnvironmentFile=${ENV_FILE_}" "${AIRFLOW_HOME}/temp"
+            update_file "\(^ExecStart.*$\)" "ExecStart= /bin/bash -c 'source ${AIRFLOW_VENV_}/bin/activate ; ${AIRFLOW_VENV_}/bin/airflow dag-processor'" "${AIRFLOW_HOME}/temp"
+            ${sudo} cat "${AIRFLOW_HOME}/temp" > "/etc/systemd/system/airflow-dag-processor.service"
+            rm "${AIRFLOW_HOME}/temp"
+        fi
     else
         echo "Creating service files..."
         service_file=/etc/systemd/system/airflow-webserver.service
@@ -245,7 +304,7 @@ EOF
         Wants=postgresql.service mysql.service
 
         [Service]
-        EnvironmentFile=#ENV_FILE
+        EnvironmentFile=$ENV_FILE
         User=airflow
         Group=airflow
         Type=simple
@@ -256,6 +315,57 @@ EOF
         [Install]
         WantedBy=multi-user.target
 EOF
+
+        # Create API server service for Airflow 3.x
+        if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
+            service_file=/etc/systemd/system/airflow-api-server.service
+            [[ -e $service_file ]] && ${sudo} rm $service_file
+            ${sudo} touch $service_file
+            ${sudo} chmod 777 $service_file
+            ${sudo} cat > $service_file <<-EOF
+        [Unit]
+        Description=Airflow API server daemon
+        After=network.target postgresql.service mysql.service
+        Wants=postgresql.service mysql.service
+
+        [Service]
+        EnvironmentFile=$ENV_FILE
+        User=airflow
+        Group=airflow
+        Type=simple
+        ExecStart= bash -c 'source $AIRFLOW_VENV/bin/activate ; $AIRFLOW_VENV/bin/airflow api-server'
+        Restart=on-failure
+        RestartSec=5s
+        PrivateTmp=true
+
+        [Install]
+        WantedBy=multi-user.target
+EOF
+
+            # Create DAG processor service for Airflow 3.x (optional but recommended)
+            service_file=/etc/systemd/system/airflow-dag-processor.service
+            [[ -e $service_file ]] && ${sudo} rm $service_file
+            ${sudo} touch $service_file
+            ${sudo} chmod 777 $service_file
+            ${sudo} cat > $service_file <<-EOF
+        [Unit]
+        Description=Airflow DAG processor daemon
+        After=network.target postgresql.service mysql.service
+        Wants=postgresql.service mysql.service
+
+        [Service]
+        EnvironmentFile=$ENV_FILE
+        User=airflow
+        Group=airflow
+        Type=simple
+        ExecStart= bash -c 'source $AIRFLOW_VENV/bin/activate ; $AIRFLOW_VENV/bin/airflow dag-processor'
+        Restart=always
+        RestartSec=5s
+
+        [Install]
+        WantedBy=multi-user.target
+EOF
+        fi
     fi
 
     # load service files
@@ -265,6 +375,21 @@ EOF
     ${sudo} systemctl enable airflow-scheduler
     ${sudo} systemctl start airflow-webserver
     ${sudo} systemctl start airflow-scheduler
+
+    # Start Airflow 3.x specific services
+    if [ "$AIRFLOW_MAJOR" -ge 3 ]; then
+        ${sudo} systemctl enable airflow-api-server
+        ${sudo} systemctl start airflow-api-server
+        echo "Started airflow-api-server service (required for Airflow 3.x)"
+
+        # DAG processor is optional but recommended
+        read -p "Do you want to enable the DAG processor service (recommended for Airflow 3.x)? [Y/n]" response
+        if [ ${response,,} == 'y' ]; then
+            ${sudo} systemctl enable airflow-dag-processor
+            ${sudo} systemctl start airflow-dag-processor
+            echo "Started airflow-dag-processor service"
+        fi
+    fi
 }
 
 # read the installation parameters
