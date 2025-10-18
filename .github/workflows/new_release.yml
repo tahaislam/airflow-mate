@@ -38,7 +38,7 @@ jobs:
       - run: |
           gh release create 'v${{ needs.check_if_is_release.outputs.version }}' \
           --repo tahaislam/airflow-mate --target main --draft --generate-notes --latest \
-          --title 'VFH ${{ needs.check_if_is_release.outputs.version }}'
+          --title 'V ${{ needs.check_if_is_release.outputs.version }}'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   update_version:
